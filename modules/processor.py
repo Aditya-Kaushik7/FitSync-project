@@ -1,61 +1,67 @@
 import pandas as pd
-from datetime import datetime
 
-def load_data():
+
+def load_data(filepath='data/health_data.csv'):
     """
-    Load and clean the health data from CSV file.
-    This function handles missing values intelligently and converts date strings into datetime objects.
-    It returns a cleaned pandas DataFrame.
+    Load health data from CSV, clean missing values, and standardize column names.
     """
-    # Step 1: Load the CSV file into a pandas DataFrame
-    file_path = 'data/health_data.csv'
-    data = pd.read_csv(file_path)
+    df = pd.read_csv(filepath)
 
-    # Step 2: Fill missing 'Steps' values with the median
-    data['Steps'].fillna(data['Steps'].median(), inplace=True)
+    # Remove spaces from column names
+    df.columns = df.columns.str.strip()
 
-    # Step 3: Fill missing 'Sleep_Hours' values with a fixed value of 7
-    data['Sleep_Hours'].fillna(7, inplace=True)
+    # Rename possible column variations
+    df.rename(columns={
+        'Sleep_Hours': 'Sleep_hours',
+        'sleep_hours': 'Sleep_hours',
+        'Heart_Rate_bpm': 'heart_rate_bpm',
+        'Heart_rate_bpm': 'heart_rate_bpm'
+    }, inplace=True)
 
-    # Step 4: Fill missing 'Heart_Rate_bpm' values with a fixed value of 68
-    data['Heart_Rate_bpm'].fillna(68, inplace=True)
+    if 'Steps' in df.columns:
+        df['Steps'].fillna(df['Steps'].median(), inplace=True)
 
-    # Step 5: Fill missing values in other columns with their respective medians
-    for column in ['Calories_Burned', 'Active_Minutes']:
-        data[column].fillna(data[column].median(), inplace=True)
+    if 'Sleep_hours' in df.columns:
+        df['Sleep_hours'].fillna(7.0, inplace=True)
 
-    # Step 6: Convert 'Date' column to datetime objects
-    data['Date'] = pd.to_datetime(data['Date'], format='%Y-%m-%d')
+    if 'heart_rate_bpm' in df.columns:
+        df['heart_rate_bpm'].fillna(68, inplace=True)
 
-    return data
+    for column in df.columns:
+        if df[column].isnull().any() and df[column].dtype != 'object':
+            df[column].fillna(df[column].median(), inplace=True)
+
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+
+    return df
+
 
 def calculate_recovery_score(df):
     """
-    Calculate and add a 'Recovery_Score' (0 to 100) to the DataFrame.
-    This score represents how well the person’s body has recovered based on sleep, heart rate, and activity levels.
-    The logic for scoring is simple and considers healthy ranges for each factor.
+    Calculate Recovery Score
     """
-    # Initialize the 'Recovery_Score' to 50 for everyone (neutral starting point)
     df['Recovery_Score'] = 50
 
-    # Adjust score based on Sleep_Hours
-    # Sleep more than 7 hours improves recovery score
-    df.loc[df['Sleep_Hours'] >= 7, 'Recovery_Score'] += 20
-    # Sleep less than 6 hours reduces recovery score
-    df.loc[df['Sleep_Hours'] < 6, 'Recovery_Score'] -= 20
+    if 'Sleep_hours' in df.columns:
+        df.loc[df['Sleep_hours'] >= 7, 'Recovery_Score'] += 20
+        df.loc[df['Sleep_hours'] < 6, 'Recovery_Score'] -= 15
 
-    # Adjust score based on Heart_Rate_bpm
-    # Lower heart rates improve recovery score
-    df.loc[df['Heart_Rate_bpm'] < 60, 'Recovery_Score'] += 10  # Excellent
-    df.loc[df['Heart_Rate_bpm'] > 80, 'Recovery_Score'] -= 10  # Needs improvement
+    if 'heart_rate_bpm' in df.columns:
+        df.loc[df['heart_rate_bpm'] <= 70, 'Recovery_Score'] += 10
+        df.loc[df['heart_rate_bpm'] > 85, 'Recovery_Score'] -= 10
 
-    # Adjust score based on Steps
-    # Moderate steps improve score, too few or too many decrease score
-    df.loc[(df['Steps'] >= 8000) & (df['Steps'] <= 12000), 'Recovery_Score'] += 10  # Optimal steps
-    df.loc[df['Steps'] < 4000, 'Recovery_Score'] -= 5   # Too few steps
-    df.loc[df['Steps'] > 16000, 'Recovery_Score'] -= 5  # Possible overexertion
+    if 'Steps' in df.columns:
+        df.loc[df['Steps'] >= 8000, 'Recovery_Score'] += 5
+        df.loc[df['Steps'] < 4000, 'Recovery_Score'] -= 5
+        df.loc[df['Steps'] > 14000, 'Recovery_Score'] -= 5
 
-    # Ensure Recovery_Score stays within 0 to 100
-    df['Recovery_Score'] = df['Recovery_Score'].clip(lower=0, upper=100)
+    df['Recovery_Score'] = df['Recovery_Score'].clip(0, 100)
 
+    return df
+
+
+def process_data():
+    df = load_data()
+    df = calculate_recovery_score(df)
     return df
