@@ -2,110 +2,102 @@ import streamlit as st
 from modules.processor import process_data
 import pandas as pd
 import plotly.express as px
+from utils.theme import apply_theme, apply_plotly_theme
 
-# Set page configuration
-st.set_page_config(layout="wide", page_title="Trends and Insights")
+st.set_page_config(layout="wide", page_title="FitSync · Trends & Insights")
 
-# Initialize session state for theme
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'
+# Apply theme (CSS + toggle button)
+apply_theme()
 
-# Extract CSS based on theme
-def get_css(theme):
-    if theme == 'dark':
-        return """
-        <style>
-            body, .stApp { background-color: #0e153a !important; color: #ffffff; }
-        </style>
-        """
-    else:
-        return """
-        <style>
-            body, .stApp { background-color: #f4f6fb !important; color: #1a1a2e; }
-        </style>
-        """
+# ── Page Content ──────────────────────────────────────────────────────────────
 
-st.markdown(get_css(st.session_state.theme), unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
+st.title("Trends & Insights")
 
-# Theme toggle
-def toggle_theme():
-    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
+st.markdown(
+    "<p style='font-size:1rem; margin-top:-8px; margin-bottom:24px; opacity:0.7;'>"
+    "Explore distributions and monthly patterns in your health data."
+    "</p>",
+    unsafe_allow_html=True,
+)
 
-_, col = st.columns([9, 1])
-with col:
-    st.button("Toggle Theme", on_click=toggle_theme)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# Title
-st.title("Trends and Insights")
+# ── Load Data ─────────────────────────────────────────────────────────────────
+df = process_data()
+df.columns = df.columns.str.lower()
+df['date'] = pd.to_datetime(df['date'])
 
-# Sidebar filter
-st.sidebar.header("Filter")
+# ── Sidebar Filters ───────────────────────────────────────────────────────────
+st.sidebar.header("Filters")
 time_range = st.sidebar.selectbox(
     "Select Time Range",
-    ["Last 7 Days", "Last 30 Days", "All time"],
-    index=2
+    options=["Last 7 Days", "Last 30 Days", "All Time"],
+    index=2,
 )
 
-# ---------------------------
-# 🔥 LOAD + FIX DATA
-# ---------------------------
-df = process_data()
-
-# ✅ Ensure date column is datetime
-df['date'] = pd.to_datetime(df['date'], errors='coerce')
-
-# Remove invalid dates
-df = df.dropna(subset=['date'])
-
-# Sort by date
-df = df.sort_values('date')
-
-# ---------------------------
-# FILTER DATA
-# ---------------------------
 if time_range == "Last 7 Days":
-    df = df[df['date'] >= df['date'].max() - pd.Timedelta(days=7)]
+    date_threshold = df['date'].max() - pd.Timedelta(days=7)
+    filtered_df = df[df['date'] > date_threshold]
 elif time_range == "Last 30 Days":
-    df = df[df['date'] >= df['date'].max() - pd.Timedelta(days=30)]
+    date_threshold = df['date'].max() - pd.Timedelta(days=30)
+    filtered_df = df[df['date'] > date_threshold]
+else:
+    filtered_df = df
 
-# ---------------------------
-# SUMMARY STATS
-# ---------------------------
-numeric_cols = ['Recovery_Score', 'Sleep_hours', 'steps', 'Calories_burned']
-
-# Ensure numeric
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors='coerce')
-
-summary_stats = df[numeric_cols].agg(['mean', 'min', 'max'])
-
-st.write("### Summary Statistics")
-st.dataframe(summary_stats)
-
-# ---------------------------
-# 📈 MONTHLY TREND (FIXED)
-# ---------------------------
-monthly_avg_recovery = (
-    df.resample('M', on='date')[numeric_cols]
-    .mean(numeric_only=True)
-    .reset_index()
+# ── Summary Statistics ────────────────────────────────────────────────────────
+st.subheader("Summary Statistics")
+st.dataframe(
+    filtered_df[['recovery_score', 'sleep_hours', 'steps', 'calories_burned']].describe(),
+    use_container_width=True,
 )
 
-avg_recovery_fig = px.line(
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ── Monthly Average Recovery ──────────────────────────────────────────────────
+filtered_df['Month'] = filtered_df['date'].dt.to_period('M')
+monthly_avg_recovery = filtered_df.groupby('Month')['recovery_score'].mean().reset_index()
+monthly_avg_recovery['Month'] = monthly_avg_recovery['Month'].astype(str)
+
+st.subheader("Average Recovery Score per Month")
+line_chart_avg_recovery = px.line(
     monthly_avg_recovery,
-    x='date',
-    y='Recovery_Score',
-    title='Monthly Average Recovery Score'
+    x='Month',
+    y='recovery_score',
+    title="Monthly Average Recovery Score",
+    markers=True,
 )
+st.plotly_chart(apply_plotly_theme(line_chart_avg_recovery), use_container_width=True)
 
-st.plotly_chart(avg_recovery_fig, use_container_width=True)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# ---------------------------
-# 📊 HISTOGRAMS
-# ---------------------------
-st.write("### Histogram Distributions")
+# ── Histograms ────────────────────────────────────────────────────────────────
+st.subheader("Distributions")
 
-st.plotly_chart(px.histogram(df, x='steps', title='Steps Distribution'), use_container_width=True)
-st.plotly_chart(px.histogram(df, x='Calories_burned', title='Calories Burned Distribution'), use_container_width=True)
-st.plotly_chart(px.histogram(df, x='Recovery_Score', title='Recovery Score Distribution'), use_container_width=True)
-st.plotly_chart(px.histogram(df, x='Sleep_hours', title='Sleep Hours Distribution'), use_container_width=True)
+col1, col2 = st.columns(2)
+
+with col1:
+    st.plotly_chart(
+        apply_plotly_theme(px.histogram(filtered_df, x='steps', title="Distribution of Steps")),
+        use_container_width=True,
+    )
+
+with col2:
+    st.plotly_chart(
+        apply_plotly_theme(px.histogram(filtered_df, x='calories_burned', title="Distribution of Calories Burned")),
+        use_container_width=True,
+    )
+
+col3, col4 = st.columns(2)
+
+with col3:
+    st.plotly_chart(
+        apply_plotly_theme(px.histogram(filtered_df, x='recovery_score', title="Distribution of Recovery Score")),
+        use_container_width=True,
+    )
+
+with col4:
+    st.plotly_chart(
+        apply_plotly_theme(px.histogram(filtered_df, x='sleep_hours', title="Distribution of Sleep Hours")),
+        use_container_width=True,
+    )

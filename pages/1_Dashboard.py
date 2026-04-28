@@ -2,184 +2,147 @@ import streamlit as st
 from modules.processor import process_data
 import pandas as pd
 import plotly.express as px
+from utils.theme import apply_theme, apply_plotly_theme
 
-# Set page configuration
-st.set_page_config(layout="wide", page_title="FitSync")
+st.set_page_config(layout="wide", page_title="FitSync · Dashboard")
 
-# Initialize session state for theme
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'
+# Apply theme (CSS + toggle button)
+apply_theme()
 
-# Extract CSS based on theme
-def get_css(theme):
-    if theme == 'dark':
-        return """
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600&family=DM+Sans&display=swap');
-            body, .stApp { background-color: #0e153a !important; color: #ffffff; font-family: 'DM Sans', sans-serif; }
-            h1, h2, h3, h4 { font-family: 'Syne', sans-serif; color: #00d4ff; margin-bottom: 0; }
-            .headline-gradient {
-                font-size: 3.7rem;
-                background: linear-gradient(120deg, #00f5a0, #00d4ff);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                margin: 25px 0 20px; text-align: center;
-            }
-            .pill-badge {
-                display: block; padding: 12px 30px; border-radius: 25px;
-                background-color: #00f5a0; color: #0e153a;
-                margin: 20px auto; font-size: 1.1rem; font-weight: bold; text-align: center; width: fit-content;
-            }
-            .metric-card {
-                border-radius: 12px; padding: 25px; background-color: #1f2440;
-                color: #ffffff; text-align: center;
-                box-shadow: 0 6px 18px rgba(0,0,0,0.2); margin: 15px 0;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-            .metric-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
-            .metric-card h3 { margin: 15px 0 10px; color: #29abe2; }
-            .metric-card .value { font-size: 2.7rem; font-weight: bold; color: #ffffff; }
-            .metric-card .label { text-transform: uppercase; font-size: 0.9rem; color: #cccccc; }
-            .pro-tip {
-                background-color: #1b1b33; padding: 15px; border-radius: 10px;
-                display: flex; align-items: center;
-                box-shadow: 0 3px 12px rgba(0,0,0,0.25); margin-top: 45px; color: #ffffff;
-            }
-            .pro-tip-icon { margin-right: 12px; font-size: 1.8rem; color: #00f5a0; }
-            .sidebar-arrow { animation: bounce 2s infinite; margin: 25px 0; color: #00f5a0; font-size: 2rem; text-align: center; }
-            .hr-divider { border: none; height: 1px; background: linear-gradient(90deg, #00f5a0, #00d4ff); margin: 20px 0; }
-            footer { display: none; } header { display: none; }
-            @keyframes bounce {
-                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                40% { transform: translateY(-12px); }
-                60% { transform: translateY(-6px); }
-            }
-        </style>
-        """
-    else:
-        return """
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600&family=DM+Sans&display=swap');
-            body, .stApp { background-color: #f4f6fb !important; color: #1a1a2e; font-family: 'DM Sans', sans-serif; }
-            h1, h2, h3, h4 { font-family: 'Syne', sans-serif; color: #0077b6; margin-bottom: 0; }
-            .headline-gradient {
-                font-size: 3.7rem;
-                background: linear-gradient(120deg, #00a86b, #0077b6);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                margin: 25px 0 20px; text-align: center;
-            }
-            .pill-badge {
-                display: block; padding: 12px 30px; border-radius: 25px;
-                background-color: #0077b6; color: #ffffff;
-                margin: 20px auto; font-size: 1.1rem; font-weight: bold; text-align: center; width: fit-content;
-            }
-            .metric-card {
-                border-radius: 12px; padding: 25px; background-color: #ffffff;
-                color: #1a1a2e; text-align: center;
-                box-shadow: 0 6px 18px rgba(0,0,0,0.08); margin: 15px 0;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-            .metric-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.12); }
-            .metric-card h3 { margin: 15px 0 10px; color: #0077b6; }
-            .metric-card .value { font-size: 2.7rem; font-weight: bold; color: #1a1a2e; }
-            .metric-card .label { text-transform: uppercase; font-size: 0.9rem; color: #555555; }
-            .pro-tip {
-                background-color: #e8f4fd; padding: 15px; border-radius: 10px;
-                display: flex; align-items: center;
-                box-shadow: 0 3px 12px rgba(0,0,0,0.06); margin-top: 45px; color: #1a1a2e;
-            }
-            .pro-tip-icon { margin-right: 12px; font-size: 1.8rem; color: #0077b6; }
-            .sidebar-arrow { animation: bounce 2s infinite; margin: 25px 0; color: #0077b6; font-size: 2rem; text-align: center; }
-            .hr-divider { border: none; height: 1px; background: linear-gradient(90deg, #00a86b, #0077b6); margin: 20px 0; }
-            footer { display: none; } header { display: none; }
-            @keyframes bounce {
-                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-                40% { transform: translateY(-12px); }
-                60% { transform: translateY(-6px); }
-            }
-        </style>
-        """
+# ── Page Content ──────────────────────────────────────────────────────────────
 
-# Inject the appropriate CSS based on the theme
-st.markdown(get_css(st.session_state.theme), unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
+st.title("FitSync — Personal Health Analytics")
 
-# Toggle Theme Button
-def toggle_theme():
-    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
+st.markdown(
+    "<p style='font-size:1rem; margin-top:-8px; margin-bottom:24px; opacity:0.7;'>"
+    "Track your recovery, sleep, and daily activity in one place."
+    "</p>",
+    unsafe_allow_html=True,
+)
 
-# Add Button at the Top to Switch Themes
-_, theme_button_col = st.columns([9, 1])
-with theme_button_col:
-    button_label = "☀️ Light Mode" if st.session_state.theme == 'dark' else "🌙 Dark Mode"
-    st.button(button_label, on_click=toggle_theme)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# Page Title
-st.title("FitSync - Personal Health Analysis")
+# ── Load Data ─────────────────────────────────────────────────────────────────
+df = process_data()
+df.columns = df.columns.str.lower()
+df['date'] = pd.to_datetime(df['date'])
 
-# Sidebar filter for time range
-st.sidebar.header("Filter")
+# ── Sidebar Filters ───────────────────────────────────────────────────────────
+st.sidebar.header("Filters")
 time_range = st.sidebar.selectbox(
     "Select Time Range",
-    options=["Last 7 Days", "Last 30 Days", "All time"],
-    index=2
+    options=["Last 7 Days", "Last 30 Days", "All Time", "Custom Range"],
+    index=2,
 )
-# Load the data
-df = process_data()
 
-# Filter the dataframe based on the selected time range
-if time_range == "Last 7 Days":
-    df = df[df['date'] >= df['date'].max() - pd.Timedelta(days=7)]
+# ── Date Range Picker (additive — only shown when "Custom Range" selected) ────
+if time_range == "Custom Range":
+    min_date = df['date'].min().date()
+    max_date = df['date'].max().date()
+
+    st.sidebar.markdown("**Select Date Range**")
+    date_from = st.sidebar.date_input(
+        "From",
+        value=min_date,
+        min_value=min_date,
+        max_value=max_date,
+        key="date_from",
+    )
+    date_to = st.sidebar.date_input(
+        "To",
+        value=max_date,
+        min_value=min_date,
+        max_value=max_date,
+        key="date_to",
+    )
+
+    # Guard: ensure from <= to
+    if date_from > date_to:
+        st.sidebar.warning("⚠️ 'From' date must be before 'To' date.")
+        date_from, date_to = date_to, date_from
+
+    filtered_df = df[
+        (df['date'].dt.date >= date_from) &
+        (df['date'].dt.date <= date_to)
+    ]
+    st.sidebar.caption(f"Showing {len(filtered_df)} records")
+
+elif time_range == "Last 7 Days":
+    date_threshold = df['date'].max() - pd.Timedelta(days=7)
+    filtered_df = df[df['date'] > date_threshold]
 elif time_range == "Last 30 Days":
-    df = df[df['date'] >= df['date'].max() - pd.Timedelta(days=30)]
-# "All time" uses the full dataframe by default
+    date_threshold = df['date'].max() - pd.Timedelta(days=30)
+    filtered_df = df[df['date'] > date_threshold]
+else:
+    filtered_df = df
 
-# Calculate metrics from the filtered data
-average_steps = df['steps'].mean()
-average_sleep_hours = df['Sleep_hours'].mean()
-average_recovery_score = df['Recovery_Score'].mean()
+# ── KPI Metrics ───────────────────────────────────────────────────────────────
+avg_steps = filtered_df['steps'].mean()
+avg_sleep_hours = filtered_df['sleep_hours'].mean()
+avg_recovery_score = filtered_df['recovery_score'].mean()
 
-# Display metrics in a 3-column layout
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric(label="Average Steps", value=f"{average_steps:.0f}", delta=None)
+    st.metric(label="Average Steps", value=f"{avg_steps:.0f}")
+with col2:
+    st.metric(label="Average Sleep Hours", value=f"{avg_sleep_hours:.1f}")
+with col3:
+    st.metric(label="Average Recovery Score", value=f"{avg_recovery_score:.1f}")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ── Charts Row 1 ──────────────────────────────────────────────────────────────
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Recovery Score & Sleep Trend")
+    line_chart = px.line(
+        filtered_df,
+        x='date',
+        y=['recovery_score', 'sleep_hours'],
+        labels={'value': 'Measurement'},
+        title="Recovery Score and Sleep Hours over Time",
+    )
+    st.plotly_chart(apply_plotly_theme(line_chart), use_container_width=True)
 
 with col2:
-    st.metric(label="Average Sleep Hours", value=f"{average_sleep_hours:.1f}", delta=None)
+    st.subheader("Recovery Score vs Daily Steps")
+    scatter_plot = px.scatter(
+        filtered_df,
+        x='steps',
+        y='recovery_score',
+        color='sleep_hours',
+        title="Scatter Plot: Recovery vs Steps",
+        labels={'color': 'Sleep Hours'},
+    )
+    st.plotly_chart(apply_plotly_theme(scatter_plot), use_container_width=True)
+
+# ── Charts Row 2 ──────────────────────────────────────────────────────────────
+col3, col4 = st.columns(2)
 
 with col3:
-    st.metric(label="Average Recovery Score", value=f"{average_recovery_score:.1f}", delta=None)
+    st.subheader("Recovery Score vs Resting Heart Rate")
+    scatter_plot_hr = px.scatter(
+        filtered_df,
+        x='heart_rate_bpm',
+        y='recovery_score',
+        title="Scatter Plot: Recovery vs Heart Rate",
+        labels={'x': 'Heart Rate (bpm)', 'y': 'Recovery Score'},
+    )
+    st.plotly_chart(apply_plotly_theme(scatter_plot_hr), use_container_width=True)
 
-st.write("Explore your health metrics in depth with FitSync")
+with col4:
+    st.subheader("Daily Calories Burned Trend")
+    line_chart_calories = px.line(
+        filtered_df,
+        x='date',
+        y='calories_burned',
+        title="Line Chart: Calories Burned",
+    )
+    st.plotly_chart(apply_plotly_theme(line_chart_calories), use_container_width=True)
 
-# Columns for additional plots
-left_col1, right_col1 = st.columns(2)
-
-# Dual Line Chart for Recovery Score & Sleep Trend
-with left_col1:
-    fig = px.line(df, x='date', y=['Recovery_Score', 'Sleep_hours'],
-                  labels={'value': 'Metrics', 'date': 'date'},
-                  title='Recovery Score & Sleep Trend')
-    st.plotly_chart(fig, use_container_width=True)
-
-# Scatter Plot for Recovery Score vs Steps
-with right_col1:
-    fig = px.scatter(df, x='steps', y='Recovery_Score', color='Sleep_hours',
-                      labels={'steps': 'Daily Steps', 'Recovery_Score': 'Recovery Score'},
-                      title='Recovery Score vs Daily Steps')
-    st.plotly_chart(fig, use_container_width=True)
-
-# Columns for additional plots
-left_col2, right_col2 = st.columns(2)
-
-# Scatter Plot for Recovery Score vs Heart Rate
-with left_col2:
-    fig = px.scatter(df, x='heart_rate_bpm', y='Recovery_Score',
-                      labels={'heart_rate_bpm': 'Heart Rate (bpm)', 'Recovery_Score': 'Recovery Score'},
-                      title='Recovery Score vs Heart Rate')
-    st.plotly_chart(fig, use_container_width=True)
-
-# Line Chart for Calories Burned Trend
-with right_col2:
-    fig = px.line(df, x='date', y='Calories_burned',
-                  labels={'Calories_burned': 'Calories Burned', 'date': 'date'},
-                  title='Daily Calories Burned Trend')
-    st.plotly_chart(fig, use_container_width=True)
+# ── Data Table ────────────────────────────────────────────────────────────────
+st.markdown("<hr>", unsafe_allow_html=True)
+st.subheader("Processed Health Data")
+st.dataframe(filtered_df, use_container_width=True)
